@@ -30,7 +30,7 @@ def test_health(client):
 def test_trips_lists_folder_contents(client):
     trips = client.get("/trips").json()["trips"]
     assert len(trips) == 10
-    assert all(set(t) == {"trip_id", "n_points"} for t in trips)
+    assert all(set(t) == {"trip_id", "n_points", "duration_s"} for t in trips)
 
 
 def test_predict_shape_and_metrics(client):

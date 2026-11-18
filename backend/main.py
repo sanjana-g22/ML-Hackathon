@@ -70,7 +70,14 @@ def health():
 @app.get("/trips")
 def trips(request: Request):
     log.info(f"GET /trips from {request.client.host}")
-    return {"trips": [{"trip_id": k, "n_points": v.n_points} for k, v in sorted(TRIPS.items())]}
+    return {"trips": [
+        {
+            "trip_id": k,
+            "n_points": v.n_points,
+            "duration_s": float(v.track["timestamp"].iloc[-1] - v.track["timestamp"].iloc[0]),
+        }
+        for k, v in sorted(TRIPS.items())
+    ]}
 
 
 @app.post("/evaluate/{trip_id}", response_model=PredictResponse)
