@@ -14,5 +14,5 @@ evaluator_test
 *.parquet
 # report maps: regenerate with `python -m maps.report_maps`; keep only the representative trip's HTML
 results/maps/report/*.html
-!results/maps/report/00000076_full.html
-!results/maps/report/00000076_detail.html
+!results/maps/report/00000091_full.html
+!results/maps/report/00000091_detail.html
