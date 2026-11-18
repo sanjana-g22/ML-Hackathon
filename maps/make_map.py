@@ -39,6 +39,7 @@ COLORS = {
     "network": "#8a8a8a",
     "reference": "#1a9850",
     "predicted": "#d7301f",
+    "break": "#f28e00",
 }
 
 LatLon = List[float]          # [lat, lon]
@@ -118,11 +119,20 @@ def _legend(entries: List[tuple]) -> Element:
         for label, color in entries
     )
     html = (
-        '<div style="position:fixed;bottom:24px;left:24px;z-index:9999;background:white;color:#222;'
+        '<div style="position:fixed;bottom:44px;left:12px;z-index:9999;background:white;color:#222;'
         'padding:8px 10px;border:1px solid #bbb;border-radius:6px;font:13px sans-serif;'
         f'box-shadow:0 1px 4px rgba(0,0,0,.2)">{rows}</div>'
     )
     return Element(html)
+
+
+def route_breaks(predicted: Optional[List[Polyline]]) -> List[LatLon]:
+    """Points where the predicted route jumps between unconnected arcs.
+
+    arcs_to_polylines() starts a new polyline at every discontinuity, so each
+    polyline after the first begins at a break.
+    """
+    return [line[0] for line in (predicted or [])[1:]]
 
 
 def make_map(
@@ -132,15 +142,30 @@ def make_map(
     predicted: Optional[List[Polyline]] = None,
     title: Optional[str] = None,
     gps_every: int = 1,
+    breaks: Optional[List[LatLon]] = None,
+    basemap: str = "Streets",
+    collapse_layers: bool = False,
+    show_gps: bool = True,
 ) -> folium.Map:
-    """Build a layered Folium map. All coordinates are [lat, lon]."""
+    """Build a layered Folium map. All coordinates are [lat, lon].
+
+    breaks   optional points to flag as route discontinuities (see route_breaks)
+    basemap  "Streets" (OpenStreetMap) or "Satellite" (Esri imagery); the
+             other one stays available in the layer control
+    """
     lats = [p[0] for p in gps]
     lons = [p[1] for p in gps]
     center = [(min(lats) + max(lats)) / 2, (min(lons) + max(lons)) / 2]
     span = max(max(lats) - min(lats), (max(lons) - min(lons)) * np.cos(np.radians(center[0])), 1e-4)
     # a ~600 px map at zoom z shows about 843 / 2**z degrees; leave some margin
     zoom = int(np.clip(np.floor(np.log2(650 / span)), 3, 18))   # explicit start view; fit_bounds refines it
-    m = folium.Map(location=center, zoom_start=zoom, tiles="OpenStreetMap", control_scale=True)
+    m = folium.Map(location=center, zoom_start=zoom, tiles=None, control_scale=True, prefer_canvas=True)
+
+    folium.TileLayer("OpenStreetMap", name="Streets", show=basemap != "Satellite").add_to(m)
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Tiles &copy; Esri", name="Satellite", max_zoom=19, show=basemap == "Satellite",
+    ).add_to(m)
     legend = []
 
     if network:
@@ -164,7 +189,7 @@ def make_map(
         fg.add_to(m)
         legend.append(("Predicted route", COLORS["predicted"]))
 
-    fg = folium.FeatureGroup(name="GPS observations", show=True)
+    fg = folium.FeatureGroup(name="GPS observations", show=show_gps)
     for i, (lat, lon) in enumerate(gps[::gps_every]):
         folium.CircleMarker(
             [lat, lon], radius=2.5, color=COLORS["gps"], fill=True, fill_opacity=0.9, weight=0,
@@ -175,9 +200,19 @@ def make_map(
     fg.add_to(m)
     legend.append(("GPS observations", COLORS["gps"]))
 
+    if breaks:
+        fg = folium.FeatureGroup(name=f"Route breaks ({len(breaks)})", show=True)
+        for lat, lon in breaks:
+            folium.CircleMarker(
+                [lat, lon], radius=6, color=COLORS["break"], weight=2, fill=True, fill_color="white",
+                fill_opacity=1, tooltip="Route break: consecutive predicted arcs are not connected",
+            ).add_to(fg)
+        fg.add_to(m)
+        legend.append(("Route break", COLORS["break"]))
+
     m.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]], padding=(20, 20))
 
-    folium.LayerControl(collapsed=False).add_to(m)
+    folium.LayerControl(collapsed=collapse_layers).add_to(m)
     m.get_root().html.add_child(_legend(legend))
     if title:
         m.get_root().html.add_child(Element(
