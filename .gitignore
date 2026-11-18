@@ -1,11 +1,12 @@
-data/
-*.zip
+__pycache__/
+*.pyc
 .env
 .venv/
 venv/
-__pycache__/
-*.pyc
+data/
+*.db
 .DS_Store
 .ipynb_checkpoints/
+*.zip
 # generated
 cache/
