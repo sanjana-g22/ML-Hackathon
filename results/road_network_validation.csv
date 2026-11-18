@@ -1,0 +1,41 @@
+metric,value
+trip_id,00000001
+n_nodes,88809
+n_arcs,165790
+valid_edges,165790
+invalid_node_references,0
+duplicate_arc_ids,0
+self_loops,0
+parallel_edges_count,584
+unique_parallel_pairs,292
+zero_length_arcs,8
+has_integrity_issues,False
+in_degree_min,0
+in_degree_max,6
+in_degree_mean,1.8668153002511008
+in_degree_median,2.0
+out_degree_min,0
+out_degree_max,6
+out_degree_mean,1.8668153002511008
+out_degree_median,2.0
+total_degree_mean,3.7336306005022015
+dead_ends_count,81
+source_nodes_count,69
+isolated_nodes_count,0
+weakly_connected_components,175
+largest_wcc_size,86854
+largest_wcc_node_pct,97.79864653357205
+strongly_connected_components,1942
+largest_scc_size,84999
+largest_scc_node_pct,95.70989426747289
+arc_length_min_m,0.0
+arc_length_max_m,1107.1686861416317
+arc_length_mean_m,39.696704589913935
+arc_length_median_m,20.234829978650946
+arc_length_std_m,55.457694130815405
+total_network_length_km,6581.316653961831
+graph_build_time_sec,0.493
+shortest_path_query_1_consecutive_route_transition,dist=0.0m (reachable=True)
+shortest_path_query_2_multihop_route_traversal,dist=1430.6939422260234m (reachable=True)
+shortest_path_query_3_distant_node_pair,dist=11111.991211135186m (reachable=True)
+shortest_path_query_4_identical_node,dist=0.0m (reachable=True)
