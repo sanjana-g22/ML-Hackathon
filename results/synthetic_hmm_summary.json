@@ -1,0 +1,36 @@
+{
+  "status": "PASS",
+  "description": "Synthetic smoke test verifying HMM rejection of noisy candidate",
+  "ground_truth_route": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "baseline": {
+    "selected_arcs": [
+      0,
+      1,
+      5,
+      3,
+      4
+    ],
+    "route_continuity": 0.5,
+    "gaps": 2,
+    "sequence_f1": 0.8000000000000002
+  },
+  "hmm_viterbi": {
+    "selected_arcs": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "route_continuity": 1.0,
+    "gaps": 0,
+    "sequence_f1": 1.0,
+    "log_likelihood": -0.968963853173898
+  }
+}

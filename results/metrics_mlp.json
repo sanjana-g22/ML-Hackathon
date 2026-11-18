@@ -1,0 +1,117 @@
+{
+  "model": "mlp",
+  "display_name": "Multi-Layer Perceptron",
+  "family": "Neural Network",
+  "config": {
+    "model_family": "Neural Network (MLP)",
+    "model_name": "Model 5 - BinaryMLPClassifier",
+    "input_dim": 14,
+    "hidden_dims": [
+      128,
+      64,
+      32
+    ],
+    "dropout": 0.2,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 1024,
+    "epochs_requested": 10,
+    "best_epoch": 2,
+    "patience": 7,
+    "seed": 42,
+    "device": "mps",
+    "features": [
+      "arc_length_m",
+      "distance_m",
+      "dt_s",
+      "from_in_degree",
+      "from_out_degree",
+      "heading_cosine",
+      "heading_difference_rad",
+      "motion_valid",
+      "projection_distance_m",
+      "projection_ratio",
+      "speed_mps",
+      "time_valid",
+      "to_in_degree",
+      "to_out_degree"
+    ]
+  },
+  "features": [
+    "arc_length_m",
+    "distance_m",
+    "dt_s",
+    "from_in_degree",
+    "from_out_degree",
+    "heading_cosine",
+    "heading_difference_rad",
+    "motion_valid",
+    "projection_distance_m",
+    "projection_ratio",
+    "speed_mps",
+    "time_valid",
+    "to_in_degree",
+    "to_out_degree"
+  ],
+  "n_train_rows": 63938,
+  "n_train_trips": 2,
+  "n_val_rows": 205200,
+  "n_val_trips": 1,
+  "final_fit_seconds": 5.187960147857666,
+  "validation": {
+    "candidate_accuracy": 0.9257894736842105,
+    "precision": 0.2699205326460481,
+    "recall": 0.7550315410033043,
+    "f1_score": 0.39767423463333595,
+    "macro_f1": 0.6790665534894773,
+    "roc_auc": 0.9233232603468411,
+    "pr_auc": 0.40152156536098355,
+    "log_loss": 0.18181464076042175,
+    "confusion_matrix": [
+      [
+        184945,
+        13597
+      ],
+      [
+        1631,
+        5027
+      ]
+    ],
+    "observation_top1_accuracy": 0.4279994477426481,
+    "total_evaluated_observations": 7243,
+    "total_evaluated_candidates": 205200,
+    "positive_candidate_count": 6658,
+    "negative_candidate_count": 198542,
+    "best_epoch": 2,
+    "best_val_loss": 0.9674805646960498,
+    "training_time_sec": 5.188
+  },
+  "student_test": {
+    "candidate_accuracy": 0.892701178051408,
+    "precision": 0.3419200348305638,
+    "recall": 0.9604565837749695,
+    "f1_score": 0.5043078075667576,
+    "macro_f1": 0.72207356397913,
+    "roc_auc": 0.9726410626104354,
+    "pr_auc": 0.6642838863314243,
+    "log_loss": 0.3035010123857043,
+    "confusion_matrix": [
+      [
+        72354,
+        9069
+      ],
+      [
+        194,
+        4712
+      ]
+    ],
+    "observation_top1_accuracy": 0.7814920505503465,
+    "total_evaluated_observations": 4906,
+    "total_evaluated_candidates": 86329,
+    "positive_candidate_count": 4906,
+    "negative_candidate_count": 81423,
+    "inference_ms_per_trip": 21.581708337180316,
+    "n_candidates": 86329,
+    "n_trips": 3
+  }
+}

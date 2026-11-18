@@ -1,0 +1,11 @@
+{
+  "model": "Model 5 (MLP)",
+  "status": "TRAINED",
+  "best_epoch": 2,
+  "train_samples": 63938,
+  "val_samples": 205200,
+  "candidate_accuracy": 0.9257894736842105,
+  "f1_score": 0.39767423463333595,
+  "roc_auc": 0.9233232603468411,
+  "observation_top1_accuracy": 0.4279994477426481
+}

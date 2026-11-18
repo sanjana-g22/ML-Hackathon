@@ -1,0 +1,14 @@
+{
+  "model_name": "lgbm",
+  "n_trips": 10,
+  "total_observations": 19160,
+  "average_execution_time_ms_per_trip": 2569.2811832996085,
+  "baseline_mean_observation_continuity": 0.8862502119716229,
+  "hmm_mean_observation_continuity": 0.9770435971751426,
+  "baseline_mean_route_continuity": 0.9985393651258647,
+  "hmm_mean_route_continuity": 1.0,
+  "baseline_total_gaps": 33,
+  "hmm_total_gaps": 0,
+  "baseline_mean_sequence_f1": 0.2815948999484295,
+  "hmm_mean_sequence_f1": 0.8505038163628654
+}

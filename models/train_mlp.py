@@ -38,7 +38,10 @@ from sklearn.metrics import (
     roc_auc_score,
     average_precision_score,
     log_loss,
-    confusion_matrix
+    confusion_matrix,
+    roc_curve,
+    precision_recall_curve,
+    auc
 )
 
 import torch
@@ -159,6 +162,7 @@ def compute_model_metrics(
     prec = float(precision_score(y_true, y_pred, zero_division=0))
     rec = float(recall_score(y_true, y_pred, zero_division=0))
     f1 = float(f1_score(y_true, y_pred, zero_division=0))
+    macro_f1 = float(f1_score(y_true, y_pred, average="macro", zero_division=0))
 
     try:
         roc_auc = float(roc_auc_score(y_true, y_prob))
@@ -202,6 +206,7 @@ def compute_model_metrics(
         "precision": prec,
         "recall": rec,
         "f1_score": f1,
+        "macro_f1": macro_f1,
         "roc_auc": roc_auc,
         "pr_auc": pr_auc,
         "log_loss": loss_val,
@@ -222,6 +227,7 @@ def train_mlp_model(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame,
     feature_cols: List[str],
+    test_df: Optional[pd.DataFrame] = None,
     epochs: int = 50,
     batch_size: int = 256,
     lr: float = 0.001,
@@ -457,7 +463,55 @@ def train_mlp_model(
     val_preds_df.to_csv(os.path.join(output_dir, "predictions.csv"), index=False)
 
     # 7. Generate Visual Evaluation Plots
-    generate_training_plots(history_df, metrics, output_dir)
+    generate_training_plots(history_df, metrics, output_dir, y_val=y_val, val_probs=val_probs_arr)
+
+    # 8. Evaluate on test_df if provided (student_test)
+    if test_df is not None and len(test_df) > 0:
+        import shutil
+        t_inf_start = time.perf_counter()
+        test_preds_df = predict_candidate_probabilities(model, preprocessor, test_df, device=device)
+        total_inf_time = time.perf_counter() - t_inf_start
+
+        y_test = test_df["is_ground_truth"].values.astype(np.float32) if "is_ground_truth" in test_df.columns else None
+        test_probs_arr = test_preds_df["prob"].values
+        test_metrics = compute_model_metrics(y_test, test_probs_arr, test_df) if y_test is not None else {}
+        n_test_trips = test_df["trip_id"].nunique()
+        test_metrics["inference_ms_per_trip"] = (total_inf_time * 1000.0) / max(1, n_test_trips)
+        test_metrics["n_candidates"] = len(test_df)
+        test_metrics["n_trips"] = n_test_trips
+
+        # Save to results/metrics_mlp.json
+        mlp_results_json = {
+            "model": "mlp",
+            "display_name": "Multi-Layer Perceptron",
+            "family": "Neural Network",
+            "config": config_dict,
+            "features": feature_cols,
+            "n_train_rows": len(train_df),
+            "n_train_trips": train_df["trip_id"].nunique(),
+            "n_val_rows": len(val_df),
+            "n_val_trips": val_df["trip_id"].nunique(),
+            "final_fit_seconds": train_duration,
+            "validation": metrics,
+            "student_test": test_metrics
+        }
+        with open("results/metrics_mlp.json", "w") as fp:
+            json.dump(mlp_results_json, fp, indent=2)
+
+        # Save predictions to results/predictions_mlp.parquet
+        test_preds_df["split"] = test_df["split"].values if "split" in test_df.columns else "student_test"
+        test_preds_df["pred_label"] = (test_preds_df["prob"] >= 0.5).astype(int)
+        test_preds_df["model_name"] = "mlp"
+        test_preds_df["inference_ms"] = test_metrics["inference_ms_per_trip"]
+        cols_order = ["trip_id", "split", "obs_idx", "arc_id", "prob", "pred_label", "model_name", "inference_ms"]
+        test_preds_df[cols_order].to_parquet("results/predictions_mlp.parquet", index=False)
+
+        # Copy plots to results/figures/
+        for p_name in ["loss_curve.png", "accuracy_curve.png", "confusion_matrix.png", "roc_curve.png", "precision_recall_curve.png"]:
+            src_p = os.path.join(output_dir, p_name)
+            dst_p = os.path.join("results/figures", f"mlp_{p_name}")
+            if os.path.exists(src_p):
+                shutil.copyfile(src_p, dst_p)
 
     print(f"\nAll Model 5 artifacts successfully saved to: {output_dir}/")
     return metrics
@@ -470,10 +524,12 @@ def train_mlp_model(
 def generate_training_plots(
     history_df: pd.DataFrame,
     metrics: Dict[str, Any],
-    output_dir: str
+    output_dir: str,
+    y_val: Optional[np.ndarray] = None,
+    val_probs: Optional[np.ndarray] = None
 ):
     """
-    Generates training loss curve, accuracy curve, and confusion matrix.
+    Generates training loss curve, accuracy curve, confusion matrix, ROC curve, and PR curve.
     """
     sns.set_theme(style="whitegrid")
 
@@ -521,6 +577,36 @@ def generate_training_plots(
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "confusion_matrix.png"), dpi=300)
     plt.close()
+
+    # Plot 4 & 5: ROC and Precision-Recall Curves
+    if y_val is not None and val_probs is not None:
+        try:
+            fpr, tpr, _ = roc_curve(y_val, val_probs)
+            roc_auc_val = auc(fpr, tpr)
+            plt.figure(figsize=(7, 5))
+            plt.plot(fpr, tpr, color="#2980b9", lw=2, label=f"ROC Curve (AUC = {roc_auc_val:.4f})")
+            plt.plot([0, 1], [0, 1], color="grey", linestyle="--")
+            plt.xlabel("False Positive Rate")
+            plt.ylabel("True Positive Rate")
+            plt.title("Model 5 (MLP): Receiver Operating Characteristic", fontsize=13, fontweight="bold")
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(os.path.join(output_dir, "roc_curve.png"), dpi=300)
+            plt.close()
+
+            prec, rec, _ = precision_recall_curve(y_val, val_probs)
+            pr_auc_val = auc(rec, prec)
+            plt.figure(figsize=(7, 5))
+            plt.plot(rec, prec, color="#27ae60", lw=2, label=f"PR Curve (AUC = {pr_auc_val:.4f})")
+            plt.xlabel("Recall")
+            plt.ylabel("Precision")
+            plt.title("Model 5 (MLP): Precision-Recall Curve", fontsize=13, fontweight="bold")
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(os.path.join(output_dir, "precision_recall_curve.png"), dpi=300)
+            plt.close()
+        except Exception:
+            pass
 
 
 # ==============================================================================
@@ -588,18 +674,30 @@ def main():
     print(f"Detected {len(feature_cols)} feature columns: {feature_cols}")
 
     # Trip-Grouped Splitting (prevents intra-trip data leakage)
-    unique_trips = sorted(df_candidates["trip_id"].unique())
-    print(f"Dataset contains {len(df_candidates)} total candidate rows across {len(unique_trips)} unique trips.")
+    if "split" in df_candidates.columns:
+        train_pool = df_candidates[df_candidates["split"] == "train"].reset_index(drop=True)
+        test_pool = df_candidates[df_candidates["split"] == "student_test"].reset_index(drop=True)
+        if len(train_pool) > 0 and train_pool["trip_id"].nunique() >= 2:
+            df_train_source = train_pool
+        else:
+            df_train_source = df_candidates
+            test_pool = None
+    else:
+        df_train_source = df_candidates
+        test_pool = None
+
+    unique_trips = sorted(df_train_source["trip_id"].unique())
+    print(f"Dataset contains {len(df_train_source)} training candidate rows across {len(unique_trips)} unique trips.")
 
     if len(unique_trips) < 2:
         print("ERROR: Dataset must contain at least 2 distinct trips to form train and validation splits.")
         sys.exit(1)
 
     gkf = GroupKFold(n_splits=min(5, len(unique_trips)))
-    train_idx, val_idx = next(gkf.split(df_candidates, groups=df_candidates["trip_id"]))
+    train_idx, val_idx = next(gkf.split(df_train_source, groups=df_train_source["trip_id"]))
 
-    train_split = df_candidates.iloc[train_idx].reset_index(drop=True)
-    val_split = df_candidates.iloc[val_idx].reset_index(drop=True)
+    train_split = df_train_source.iloc[train_idx].reset_index(drop=True)
+    val_split = df_train_source.iloc[val_idx].reset_index(drop=True)
 
     train_trips = set(train_split["trip_id"].unique())
     val_trips = set(val_split["trip_id"].unique())
@@ -613,6 +711,7 @@ def main():
         train_df=train_split,
         val_df=val_split,
         feature_cols=feature_cols,
+        test_df=test_pool,
         epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,

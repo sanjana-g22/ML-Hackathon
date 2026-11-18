@@ -10,3 +10,5 @@ data/
 *.zip
 # generated
 cache/
+evaluator_test
+*.parquet

@@ -1,0 +1,14 @@
+{
+  "model_name": "rf",
+  "n_trips": 10,
+  "total_observations": 19160,
+  "average_execution_time_ms_per_trip": 2518.6651333002374,
+  "baseline_mean_observation_continuity": 0.8978066038018389,
+  "hmm_mean_observation_continuity": 0.9761491790764454,
+  "baseline_mean_route_continuity": 0.9974773915646471,
+  "hmm_mean_route_continuity": 1.0,
+  "baseline_total_gaps": 37,
+  "hmm_total_gaps": 0,
+  "baseline_mean_sequence_f1": 0.31089132735415775,
+  "hmm_mean_sequence_f1": 0.8643224342688445
+}
