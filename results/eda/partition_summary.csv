@@ -1,0 +1,3 @@
+partition,trips,total_points,points_median,points_min,points_max,duration_median_s,track_km_median,share_dt_1s_mean,trips_with_gap_gt30s,arcs_median,arcs_max,route_arcs_median,route_continuity_mean
+student_test,10,19160,1420.0,262,3958,1809.5,20.93558818464922,0.9819896936551981,2,13145.0,56027,250.0,99.97319034852546
+train,80,208417,1529.0,361,19313,1710.0014999999999,24.065686230098315,0.9382961036581522,28,19526.5,307392,280.0,99.93461551444497
