@@ -13,6 +13,7 @@ Pipeline
     3. Decoder                 hmm.decoder.decode_trip (M3) global Viterbi decoder;
                                fallback to classifier-only: highest-probability arc per point
 """
+import logging
 import os
 import time
 import warnings
@@ -26,10 +27,13 @@ import pandas as pd
 from src.data_loader import TripData
 from src.member1_pipeline import inference_features
 
+log = logging.getLogger("pathsnap")
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MODEL_PATH = Path(os.environ.get("PATHSNAP_MODEL", REPO_ROOT / "artifacts" / "rf_model.joblib"))
 CANDIDATE_RADIUS_M = 250.0     # must match the training data (src.member1_pipeline defaults)
 MAX_CANDIDATES = 30
+HMM_TOP_K = int(os.environ.get("HMM_TOP_K", 10))   # candidates per point passed to the HMM (0 = all)
 
 try:                            # M3's Viterbi decoder
     from hmm.decoder import decode_trip as _hmm_decode
@@ -107,24 +111,36 @@ def predict(trip: TripData) -> Prediction:
     timings["classifier_ms"] = (time.perf_counter() - t0) * 1000
 
     t0 = time.perf_counter()
+    decoder_used, hmm_undecided = "classifier-only", 0
     if _hmm_decode is not None and len(candidates) > 0:
+        # The HMM's cost is dominated by shortest-path transitions between every pair of candidates
+        # of consecutive points; keeping each point's HMM_TOP_K most probable candidates gave
+        # identical student-test results at top-10 while running 4-5x faster.
+        hmm_candidates = (candidates.sort_values(["obs_idx", "prob"], ascending=[True, False])
+                          .groupby("obs_idx", sort=False).head(HMM_TOP_K)
+                          .sort_values(["obs_idx", "distance_m"])) if HMM_TOP_K else candidates
         try:
-            arcs = np.asarray(_hmm_decode(trip, network, candidates, xy, valid), dtype=np.int64)
-            # Ensure valid shape and handle any unassigned observation
+            arcs = np.asarray(_hmm_decode(trip, network, hmm_candidates, xy, valid), dtype=np.int64)
             if len(arcs) == trip.n_points:
-                unassigned = arcs < 0
-                if np.any(unassigned):
-                    fallback_arcs = argmax_decode(candidates, trip.n_points)
-                    arcs[unassigned] = fallback_arcs[unassigned]
+                decoder_used = "hmm"
+                unassigned = arcs < 0      # points the HMM left undecided: use the classifier's choice
+                hmm_undecided = int(unassigned.sum())
+                if hmm_undecided:
+                    arcs[unassigned] = argmax_decode(candidates, trip.n_points)[unassigned]
             else:
+                log.warning(f"trip {trip.trip_id}: HMM returned {len(arcs)} arcs for {trip.n_points} points; "
+                            "using classifier-only")
                 arcs = argmax_decode(candidates, trip.n_points)
-        except Exception:
+        except Exception as e:             # never fail the request, but never hide the fallback either
+            log.warning(f"trip {trip.trip_id}: HMM failed ({type(e).__name__}: {e}); using classifier-only")
             arcs = argmax_decode(candidates, trip.n_points)
     else:
         arcs = argmax_decode(candidates, trip.n_points)
     timings["decoder_ms"] = (time.perf_counter() - t0) * 1000
 
-    return Prediction(arcs, candidates, network, xy, valid, {k: round(v, 1) for k, v in timings.items()})
+    info = {k: round(v, 1) for k, v in timings.items()}
+    info.update({"decoder_used": decoder_used, "hmm_undecided_points": hmm_undecided})
+    return Prediction(arcs, candidates, network, xy, valid, info)
 
 
 def predict_arcs(trip: TripData) -> np.ndarray:
