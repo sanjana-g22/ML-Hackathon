@@ -40,6 +40,8 @@ COLORS = {
     "reference": "#1a9850",
     "predicted": "#d7301f",
     "break": "#f28e00",
+    "wrong": "#c51b8a",
+    "alternative": "#6a3d9a",
 }
 
 LatLon = List[float]          # [lat, lon]
@@ -146,12 +148,23 @@ def make_map(
     basemap: str = "Streets",
     collapse_layers: bool = False,
     show_gps: bool = True,
+    predicted_label: str = "Predicted route",
+    extra_routes: Optional[List[tuple]] = None,
+    wrong_points: Optional[List[LatLon]] = None,
+    focus: Optional[tuple] = None,
+    wrong_points_visible: bool = True,
+    breaks_visible: bool = True,
 ) -> folium.Map:
     """Build a layered Folium map. All coordinates are [lat, lon].
 
-    breaks   optional points to flag as route discontinuities (see route_breaks)
-    basemap  "Streets" (OpenStreetMap) or "Satellite" (Esri imagery); the
-             other one stays available in the layer control
+    breaks           optional points to flag as route discontinuities (see route_breaks)
+    basemap          "Streets" (OpenStreetMap) or "Satellite" (Esri imagery); the
+                     other one stays available in the layer control
+    predicted_label  layer/legend name for `predicted` (e.g. "Predicted route (HMM)")
+    extra_routes     more route layers: [(label, polylines, colour), ...], e.g. classifier-only
+                     vs HMM; drawn dotted beneath the main predicted route
+    wrong_points     GPS points whose predicted arc differs from the reference arc
+    focus            (lat, lon, zoom) to open on a detail view instead of the whole trip
     """
     lats = [p[0] for p in gps]
     lons = [p[1] for p in gps]
@@ -175,20 +188,7 @@ def make_map(
         fg.add_to(m)
         legend.append(("Road network", COLORS["network"]))
 
-    if reference:
-        fg = folium.FeatureGroup(name="Reference route", show=True)
-        for line in reference:
-            folium.PolyLine(line, color=COLORS["reference"], weight=6, opacity=0.7).add_to(fg)
-        fg.add_to(m)
-        legend.append(("Reference route", COLORS["reference"]))
-
-    if predicted:
-        fg = folium.FeatureGroup(name="Predicted route", show=True)
-        for line in predicted:
-            folium.PolyLine(line, color=COLORS["predicted"], weight=3.5, opacity=0.9, dash_array="6 4").add_to(fg)
-        fg.add_to(m)
-        legend.append(("Predicted route", COLORS["predicted"]))
-
+    # GPS points go under the route layers, so reference vs predicted stays readable at any zoom
     fg = folium.FeatureGroup(name="GPS observations", show=show_gps)
     for i, (lat, lon) in enumerate(gps[::gps_every]):
         folium.CircleMarker(
@@ -200,8 +200,29 @@ def make_map(
     fg.add_to(m)
     legend.append(("GPS observations", COLORS["gps"]))
 
+    if reference:
+        fg = folium.FeatureGroup(name="Reference route", show=True)
+        for line in reference:
+            folium.PolyLine(line, color=COLORS["reference"], weight=6, opacity=0.7).add_to(fg)
+        fg.add_to(m)
+        legend.append(("Reference route", COLORS["reference"]))
+
+    for label, lines, color in extra_routes or []:
+        fg = folium.FeatureGroup(name=label, show=True)
+        for line in lines:
+            folium.PolyLine(line, color=color, weight=3, opacity=0.85, dash_array="2 5").add_to(fg)
+        fg.add_to(m)
+        legend.append((label, color))
+
+    if predicted:
+        fg = folium.FeatureGroup(name=predicted_label, show=True)
+        for line in predicted:
+            folium.PolyLine(line, color=COLORS["predicted"], weight=3.5, opacity=0.9, dash_array="6 4").add_to(fg)
+        fg.add_to(m)
+        legend.append((predicted_label, COLORS["predicted"]))
+
     if breaks:
-        fg = folium.FeatureGroup(name=f"Route breaks ({len(breaks)})", show=True)
+        fg = folium.FeatureGroup(name=f"Route breaks ({len(breaks)})", show=breaks_visible)
         for lat, lon in breaks:
             folium.CircleMarker(
                 [lat, lon], radius=6, color=COLORS["break"], weight=2, fill=True, fill_color="white",
@@ -210,7 +231,20 @@ def make_map(
         fg.add_to(m)
         legend.append(("Route break", COLORS["break"]))
 
-    m.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]], padding=(20, 20))
+    if wrong_points:
+        fg = folium.FeatureGroup(name=f"Wrong road ({len(wrong_points)} points)", show=wrong_points_visible)
+        for lat, lon in wrong_points:
+            folium.CircleMarker(
+                [lat, lon], radius=3.5, color=COLORS["wrong"], weight=1.5, fill=True, fill_color=COLORS["wrong"],
+                fill_opacity=0.5, tooltip="Predicted road differs from the reference road",
+            ).add_to(fg)
+        fg.add_to(m)
+        legend.append(("GPS point on wrong road", COLORS["wrong"]))
+
+    if focus:
+        m.location, m.options["zoom"] = [focus[0], focus[1]], focus[2]
+    else:
+        m.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]], padding=(20, 20))
 
     folium.LayerControl(collapsed=collapse_layers).add_to(m)
     m.get_root().html.add_child(_legend(legend))
