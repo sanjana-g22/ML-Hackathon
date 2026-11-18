@@ -1,10 +1,15 @@
 """
 Backend tests. Run from the repo root:  pytest tests/
 
-Uses the student_test partition as the trip folder (the EVAL_DIR default).
+Always uses the student_test partition. backend.config would otherwise pick up evaluator
+trips when data/evaluator_test exists, and tests must never score evaluator data.
 """
 import dataclasses
 import json
+import os
+from pathlib import Path
+
+os.environ["EVAL_DIR"] = str(Path(__file__).resolve().parents[1] / "student_test")   # before importing backend
 
 import numpy as np
 import pytest
@@ -45,6 +50,13 @@ def test_predict_shape_and_metrics(client):
         assert 0.0 <= m[key] <= 1.0, key
     for key in ["inference_ms", "features_ms", "classifier_ms", "decoder_ms"]:
         assert m[key] >= 0, key
+    # the HMM must actually run (a silent fallback to classifier-only would fail here)
+    assert m["decoder_used"] == ("hmm" if predictor._hmm_decode else "classifier-only")
+
+
+def test_api_serves_student_test_in_tests(client):
+    assert client.get("/health").json()["n_trips"] == 10
+    assert "00000000" in {t["trip_id"] for t in client.get("/trips").json()["trips"]}
 
 
 def test_evaluate_alias_matches_predict(client):
