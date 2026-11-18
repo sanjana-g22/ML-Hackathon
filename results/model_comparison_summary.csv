@@ -1,2 +1,0 @@
-Model,Algorithm Family,Key Configuration,CV Macro F1-score,Top-1 Accuracy,Route Continuity,Student-Test Macro F1-score,Log Loss,Inference Time
-Logistic Regression,Linear / probabilistic,C=1.0; penalty=l2; solver=lbfgs; max_iter=500; class_weight=balanced; imputer=median; scaler=StandardScaler; random_state=42,0.5854,0.5389,0.7414,0.5594,0.4601,39.7887
