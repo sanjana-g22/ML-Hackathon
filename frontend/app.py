@@ -164,6 +164,7 @@ with st.container(border=True):
             f"{fmt_duration(trip_by_id[t].get('duration_s', 0))}"
             + ("  ·  ✓ evaluated" if t in evaluated else "")
         ),
+        key="trip_select",   # stable identity: the labels change after a run, the selection must not reset
     )
     run = c2.button("Run prediction", type="primary", icon=":material/play_arrow:", width="stretch")
 
