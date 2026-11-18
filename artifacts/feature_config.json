@@ -1,0 +1,29 @@
+{
+  "features": [
+    "distance_m",
+    "projection_ratio",
+    "projection_distance_m",
+    "arc_length_m",
+    "heading_difference_rad",
+    "heading_cosine",
+    "speed_mps",
+    "dt_s",
+    "from_in_degree",
+    "from_out_degree",
+    "to_in_degree",
+    "to_out_degree",
+    "motion_valid",
+    "time_valid"
+  ],
+  "model": "logistic",
+  "config": {
+    "C": 1.0,
+    "penalty": "l2",
+    "solver": "lbfgs",
+    "max_iter": 500,
+    "class_weight": "balanced",
+    "imputer": "median",
+    "scaler": "StandardScaler",
+    "random_state": 42
+  }
+}
