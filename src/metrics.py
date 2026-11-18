@@ -4,6 +4,7 @@ Run directly to build the model comparison table:  python src/metrics.py
 """
 import json
 import time
+from functools import lru_cache
 from pathlib import Path
 
 import joblib
@@ -20,7 +21,7 @@ CANDIDATES = ROOT / "data" / "candidates.parquet"
 RESULTS = ROOT / "results"
 FIGURES = RESULTS / "figures"
 ARTIFACTS = ROOT / "artifacts"
-RAW_DIRS = [ROOT, ROOT.parent / "Student folder"]
+RAW_DIRS = [ROOT.parent / "Student folder", ROOT, ROOT / "data"]
 
 KEYS = ["trip_id", "split", "obs_idx"]
 EXCLUDE = ["trip_id", "split", "obs_idx", "t", "arc_id", "label", "true_arc_id", "is_missed"]
@@ -39,6 +40,9 @@ def load_candidates():
     if missing:
         raise ValueError(f"candidates.parquet is missing columns: {sorted(missing)}")
     df["trip_id"] = df["trip_id"].astype(str)
+    # float32 halves memory on 5M+ rows; sklearn trees cast to float32 anyway
+    float_cols = df.select_dtypes("float64").columns
+    df[float_cols] = df[float_cols].astype(np.float32)
     return df
 
 
@@ -56,6 +60,7 @@ def read_ints(path):
         return np.array(f.read().split(), dtype=np.int64)
 
 
+@lru_cache(maxsize=None)
 def load_trip_files(split, trip_id):
     """Return (arcs, route) for a trip, or None for whichever file is missing."""
     for base in RAW_DIRS:
@@ -80,13 +85,14 @@ def collapse_repeats(seq):
 
 
 def lcs_length(a, b):
-    prev = [0] * (len(b) + 1)
+    # standard LCS DP, one row at a time; the running max replaces the cur[j-1] term
+    b = np.asarray(b)
+    prev = np.zeros(len(b) + 1, dtype=np.int32)
     for x in a:
-        cur = [0] * (len(b) + 1)
-        for j, y in enumerate(b, 1):
-            cur[j] = prev[j - 1] + 1 if x == y else max(prev[j], cur[j - 1])
-        prev = cur
-    return prev[-1]
+        cur = prev.copy()
+        cur[1:] = np.maximum(prev[1:], prev[:-1] + (b == x))
+        prev = np.maximum.accumulate(cur)
+    return int(prev[-1])
 
 
 def route_continuity(seq, arcs):
@@ -109,7 +115,7 @@ def sequence_f1(seq, route):
 def evaluate_predictions(pred_df, candidates_df, verbose=False):
     pred = pred_df.copy()
     pred["trip_id"] = pred["trip_id"].astype(str)
-    cand = candidates_df.copy()
+    cand = candidates_df[KEYS + ["arc_id", "label"]].copy()
     cand["trip_id"] = cand["trip_id"].astype(str)
     cand = cand.merge(pred[["trip_id", "split"]].drop_duplicates(), on=["trip_id", "split"])
 
