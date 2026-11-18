@@ -1,0 +1,14 @@
+{
+  "model_name": "knn",
+  "n_trips": 10,
+  "total_observations": 19160,
+  "average_execution_time_ms_per_trip": 2731.2500794010703,
+  "baseline_mean_observation_continuity": 0.7982397272707104,
+  "hmm_mean_observation_continuity": 0.9465713827222881,
+  "baseline_mean_route_continuity": 0.9983120376579777,
+  "hmm_mean_route_continuity": 1.0,
+  "baseline_total_gaps": 78,
+  "hmm_total_gaps": 0,
+  "baseline_mean_sequence_f1": 0.19761941592188997,
+  "hmm_mean_sequence_f1": 0.6851505548872442
+}

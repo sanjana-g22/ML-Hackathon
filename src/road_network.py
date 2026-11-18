@@ -210,7 +210,7 @@ class RoadNetwork:
         """
         Retrieves all downstream arc IDs that originate from the destination
         node (to_node_id) of the specified arc.
-        
+
         Essential for HMM candidate transition modeling.
         """
         _, to_node = self.get_arc_endpoints(arc_id)
@@ -230,7 +230,8 @@ class RoadNetwork:
         self,
         source_node: int,
         target_node: int,
-        weight: str = "length_m"
+        weight: str = "length_m",
+        cutoff: Optional[float] = None
     ) -> Optional[float]:
         """
         Computes shortest-path network distance in metres between two nodes
@@ -253,6 +254,28 @@ class RoadNetwork:
             return float(dist)
         except (nx.NetworkXNoPath, nx.NodeNotFound):
             return None
+
+    def single_source_shortest_path_distances(
+        self,
+        source_node: int,
+        cutoff: Optional[float] = None,
+        weight: str = "length_m"
+    ) -> Dict[int, float]:
+        """
+        Runs Dijkstra from source_node once up to cutoff distance,
+        returning a dictionary of {target_node: distance_m}.
+        """
+        if not self.graph.has_node(source_node):
+            return {}
+        try:
+            return nx.single_source_dijkstra_path_length(
+                self.graph,
+                source=source_node,
+                cutoff=cutoff,
+                weight=weight
+            )
+        except Exception:
+            return {}
 
     def shortest_path(
         self,

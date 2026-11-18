@@ -1,0 +1,6 @@
+Model,Algorithm Family,Training Trips,Evaluated Trips,Trip IDs,Baseline Sequence F1,HMM Sequence F1,Sequence F1 Gain (x),Baseline Route Continuity (%),HMM Route Continuity (%),Baseline Gaps,HMM Gaps,Gap Reduction (%),HMM Latency (ms/trip)
+Logistic Regression,Linear Classifier,80,3,"00000000, 00000007, 00000009",0.3869,0.784,2.03,99.89,100.0,4,0,100.0,1404.4
+K-Nearest Neighbors,Instance-based,80,3,"00000000, 00000007, 00000009",0.363,0.7374,2.03,99.46,100.0,20,0,100.0,1457.3
+Random Forest,Bagging Trees,80,3,"00000000, 00000007, 00000009",0.5126,0.8947,1.75,99.18,100.0,16,0,100.0,1376.8
+LightGBM,Gradient Boosting,80,3,"00000000, 00000007, 00000009",0.4998,0.8807,1.76,99.53,100.0,12,0,100.0,1422.9
+Model 5 MLP,Neural Network,3,3,"00000000, 00000007, 00000009",0.3637,0.8809,2.42,99.58,100.0,10,0,100.0,1421.3

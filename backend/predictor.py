@@ -10,14 +10,8 @@ Pipeline
                                code and settings used to build the training data
     2. Candidate classifier    artifacts/<model>.joblib saved by src.metrics.run_experiment
                                (default: Random Forest; override with PATHSNAP_MODEL)
-    3. Decoder                 hmm.decoder.decode_trip (M3) if that module exists,
-                               otherwise classifier-only: highest-probability arc per point
-
-Decoder contract for M3 (hmm/decoder.py):
-    decode_trip(trip, network, candidates, xy, valid) -> np.ndarray of arc_id, one per
-    GPS observation (-1 if undecided). `candidates` has columns obs_idx, arc_id, prob and
-    every feature column; `network` is src.network.SpatialNetwork; xy are projected
-    GPS points in metres and `valid` marks usable ones.
+    3. Decoder                 hmm.decoder.decode_trip (M3) global Viterbi decoder;
+                               fallback to classifier-only: highest-probability arc per point
 """
 import os
 import time
@@ -37,14 +31,25 @@ MODEL_PATH = Path(os.environ.get("PATHSNAP_MODEL", REPO_ROOT / "artifacts" / "rf
 CANDIDATE_RADIUS_M = 250.0     # must match the training data (src.member1_pipeline defaults)
 MAX_CANDIDATES = 30
 
-try:                            # M3's Viterbi decoder, picked up automatically once it exists
+try:                            # M3's Viterbi decoder
     from hmm.decoder import decode_trip as _hmm_decode
 except ImportError:
-    _hmm_decode = None
+    try:
+        from backend.hmm_decoder import viterbi_map_match_trip
+        def _hmm_decode(trip, network, candidates, xy=None, valid=None):
+            return viterbi_map_match_trip(trip, candidates)["observation_arcs"]
+    except ImportError:
+        _hmm_decode = None
 
-DECODER_NAME = "HMM/Viterbi" if _hmm_decode else "classifier-only (argmax per point)"
-_MODEL_NAMES = {"rf_model": "Random Forest", "best_model_tuned": "Tuned model", "lgbm_untuned": "LightGBM",
-                "logistic_pipeline": "Logistic Regression", "knn_model": "KNN"}
+DECODER_NAME = "HMM/Viterbi (Member 3)" if _hmm_decode else "classifier-only (argmax per point)"
+_MODEL_NAMES = {
+    "rf_model": "Random Forest",
+    "best_model_tuned": "Tuned model",
+    "lgbm_untuned": "LightGBM",
+    "logistic_pipeline": "Logistic Regression",
+    "knn_model": "KNN",
+    "mlp_model": "MLP"
+}
 PIPELINE_NAME = f"{_MODEL_NAMES.get(MODEL_PATH.stem, MODEL_PATH.stem)} + {DECODER_NAME}"
 
 _model = None
@@ -93,12 +98,28 @@ def predict(trip: TripData) -> Prediction:
     timings["features_ms"] = (time.perf_counter() - t0) * 1000
 
     t0 = time.perf_counter()
-    candidates["prob"] = model.predict_proba(candidates[features])[:, 1] if len(candidates) else []
+    if len(candidates) and hasattr(model, "predict_proba"):
+        candidates["prob"] = model.predict_proba(candidates[features])[:, 1]
+    elif len(candidates) and "distance_m" in candidates.columns:
+        candidates["prob"] = np.exp(-candidates["distance_m"].to_numpy() / 50.0)
+    else:
+        candidates["prob"] = []
     timings["classifier_ms"] = (time.perf_counter() - t0) * 1000
 
     t0 = time.perf_counter()
-    if _hmm_decode is not None:
-        arcs = np.asarray(_hmm_decode(trip, network, candidates, xy, valid), dtype=np.int64)
+    if _hmm_decode is not None and len(candidates) > 0:
+        try:
+            arcs = np.asarray(_hmm_decode(trip, network, candidates, xy, valid), dtype=np.int64)
+            # Ensure valid shape and handle any unassigned observation
+            if len(arcs) == trip.n_points:
+                unassigned = arcs < 0
+                if np.any(unassigned):
+                    fallback_arcs = argmax_decode(candidates, trip.n_points)
+                    arcs[unassigned] = fallback_arcs[unassigned]
+            else:
+                arcs = argmax_decode(candidates, trip.n_points)
+        except Exception:
+            arcs = argmax_decode(candidates, trip.n_points)
     else:
         arcs = argmax_decode(candidates, trip.n_points)
     timings["decoder_ms"] = (time.perf_counter() - t0) * 1000

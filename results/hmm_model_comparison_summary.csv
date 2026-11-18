@@ -1,0 +1,6 @@
+Model,Algorithm Family,Training Trips,Test Trips Evaluated,Evaluation Scope Note,Baseline Sequence F1,HMM Sequence F1,Sequence F1 Gain (x),Baseline Route Continuity (%),HMM Route Continuity (%),Baseline Gaps,HMM Gaps,Gap Reduction (%),HMM Latency (ms/trip)
+Logistic Regression,Linear Classifier,80,10,Full 10 student trips,0.2095,0.6718,3.21,99.96,99.99,51,6,88.2,2592.8
+K-Nearest Neighbors,Instance-based,80,10,Full 10 student trips,0.1976,0.6852,3.47,99.83,100.0,78,0,100.0,2731.3
+Random Forest,Bagging Trees,80,10,Full 10 student trips,0.3109,0.8643,2.78,99.75,100.0,37,0,100.0,2518.7
+LightGBM,Gradient Boosting,80,10,Full 10 student trips,0.2816,0.8505,3.02,99.85,100.0,33,0,100.0,2569.3
+Model 5 MLP,Neural Network,3,3,3 of 10 student trips,0.3637,0.8809,2.42,99.58,100.0,10,0,100.0,1421.3

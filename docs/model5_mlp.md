@@ -7,6 +7,11 @@
 **Test Suite:** `tests/test_mlp.py` (10 unit/integration tests passing)  
 **Status:** Architecture, Preprocessing, Training Engine & HMM Predictor Implemented; Ready for Member 1 Candidate Dataset.
 
+> [!NOTE]
+> **Dataset Availability & Real Training Status:**
+> As per the official hackathon workflow, Member 1's multi-million row precomputed training candidate dataset (`data/candidates.parquet` for the 80 training trips) is not tracked in git due to storage constraints. Candidate predictions on `student_test` were generated for Logistic Regression and KNN.
+> The Model 5 MLP pipeline is fully implemented (`models/mlp_model.py`, `models/train_mlp.py`, `models/candidate_adapter.py`, `models/predict.py`) and validated across 10 automated unit and integration tests. The synthetic training curves in `results/figures/` serve as architecture verification fixtures and are not represented as real dataset performance. All evaluation metrics in the report clearly distinguish between real student_test evaluation and synthetic verification fixtures.
+
 ---
 
 ## 1. Problem Formulation & Objective

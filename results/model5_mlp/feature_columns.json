@@ -1,0 +1,16 @@
+[
+  "arc_length_m",
+  "distance_m",
+  "dt_s",
+  "from_in_degree",
+  "from_out_degree",
+  "heading_cosine",
+  "heading_difference_rad",
+  "motion_valid",
+  "projection_distance_m",
+  "projection_ratio",
+  "speed_mps",
+  "time_valid",
+  "to_in_degree",
+  "to_out_degree"
+]

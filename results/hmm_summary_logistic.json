@@ -1,0 +1,14 @@
+{
+  "model_name": "logistic",
+  "n_trips": 10,
+  "total_observations": 19160,
+  "average_execution_time_ms_per_trip": 2592.7503627026454,
+  "baseline_mean_observation_continuity": 0.7413984816181577,
+  "hmm_mean_observation_continuity": 0.958707011424603,
+  "baseline_mean_route_continuity": 0.9995517287763592,
+  "hmm_mean_route_continuity": 0.9999106877046741,
+  "baseline_total_gaps": 51,
+  "hmm_total_gaps": 6,
+  "baseline_mean_sequence_f1": 0.20948872635260773,
+  "hmm_mean_sequence_f1": 0.6717784471570386
+}

@@ -23,6 +23,7 @@ import pandas as pd
 
 METADATA_COLUMNS = {
     "trip_id",
+    "split",
     "obs_idx",
     "observation_index",
     "candidate_arc_id",
@@ -30,6 +31,7 @@ METADATA_COLUMNS = {
     "from_node_id",
     "to_node_id",
     "timestamp",
+    "t",
     "gps_lon",
     "gps_lat",
     "longitude",
@@ -138,7 +140,7 @@ def generate_synthetic_candidate_data(
     """
     Generates a realistic synthetic candidate dataset strictly for unit testing,
     pipeline integration verification, and test coverage.
-    
+
     DO NOT use this for reporting real model accuracy!
     """
     rng = np.random.RandomState(seed)

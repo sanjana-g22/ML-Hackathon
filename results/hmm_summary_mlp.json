@@ -1,0 +1,14 @@
+{
+  "model_name": "mlp",
+  "n_trips": 3,
+  "total_observations": 4906,
+  "average_execution_time_ms_per_trip": 1421.3043469838642,
+  "baseline_mean_observation_continuity": 0.8740900589842214,
+  "hmm_mean_observation_continuity": 0.98162538671353,
+  "baseline_mean_route_continuity": 0.9957527090924098,
+  "hmm_mean_route_continuity": 1.0,
+  "baseline_total_gaps": 10,
+  "hmm_total_gaps": 0,
+  "baseline_mean_sequence_f1": 0.363747337233644,
+  "hmm_mean_sequence_f1": 0.8808820945892021
+}
