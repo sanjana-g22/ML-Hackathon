@@ -248,7 +248,49 @@ def quality_notes(inv: pd.DataFrame) -> str:
     return "\n".join(lines) + "\n"
 
 
+OVERVIEW_PANELS = [
+    ("fig_points_per_trip.png", "Trip length: GPS points per trip"),
+    ("fig_sampling_interval.png", "Sampling: seconds between fixes"),
+    ("fig_max_gap_per_trip.png", "Dropouts: largest gap per trip"),
+    ("fig_trip_locations.png", "Location: trips span 23 UTM zones"),
+    ("fig_network_size.png", "Road-network size vs trip length"),
+    ("fig_points_per_route_arc.png", "Labels: GPS points per reference arc"),
+    ("fig_sample_trajectories.png", "Raw GPS tracks (local metres)"),
+]
+
+
+def combine_figures(path=None) -> str:
+    """Tile the EDA figures into one labelled image (A-G) for the report and slides."""
+    path = path or os.path.join(OUT_DIR, "eda_overview.png")
+    inv = pd.read_csv(os.path.join(OUT_DIR, "trip_inventory.csv"))
+    fig = plt.figure(figsize=(16, 21))
+    grid = fig.add_gridspec(4, 2, height_ratios=[1, 1, 1, 1.45], hspace=0.12, wspace=0.04)
+    slots = [grid[0, 0], grid[0, 1], grid[1, 0], grid[1, 1], grid[2, 0], grid[2, 1], grid[3, :]]
+    for slot, (fname, caption), letter in zip(slots, OVERVIEW_PANELS, "ABCDEFG"):
+        ax = fig.add_subplot(slot)
+        ax.imshow(plt.imread(os.path.join(OUT_DIR, fname)))
+        ax.set_axis_off()
+        ax.set_title(f"{letter}   {caption}", loc="left", fontsize=13, fontweight="bold", pad=6)
+
+    counts = inv.groupby("partition").size()
+    facts = (f"{counts.get('train', 0)} train + {counts.get('student_test', 0)} student-test trips  ·  "
+             f"{inv.n_points.sum():,} GPS points  ·  0 missing values  ·  "
+             f"{(inv.dt_max_s > 30).sum()} trips with a gap > 30 s (max {inv.dt_max_s.max() / 3600:.1f} h)  ·  "
+             f"{inv.utm_zone.nunique()} UTM zones  ·  {inv.n_arcs.min():,}–{inv.n_arcs.max():,} arcs per network  ·  "
+             f"median {inv.points_per_route_arc.median():.2f} GPS points per route arc")
+    fig.suptitle("PathSnap dataset: exploratory data analysis (train = blue, student-test = orange)",
+                 fontsize=17, fontweight="bold", y=0.995)
+    fig.text(0.5, 0.977, facts, ha="center", fontsize=10.5, color="#333")
+    fig.subplots_adjust(left=0.01, right=0.99, top=0.955, bottom=0.005)
+    fig.savefig(path, dpi=130)
+    plt.close(fig)
+    return path
+
+
 def main() -> None:
+    if "--overview-only" in sys.argv:          # rebuild eda_overview.png from the saved figures
+        print("saved", combine_figures())
+        return
     os.makedirs(OUT_DIR, exist_ok=True)
     os.makedirs(MAP_DIR, exist_ok=True)
 
@@ -292,6 +334,7 @@ def main() -> None:
         f.write(quality_notes(inv))
 
     plots(inv, all_dt)
+    combine_figures()
 
     # Folium maps: one typical train trip, the trip with the worst gap, one student-test trip
     from maps.make_map import make_map, trip_layers
