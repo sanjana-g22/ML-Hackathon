@@ -104,8 +104,8 @@ def predict(req: PredictRequest, request: Request):
     top1 = metrics["top1_accuracy"]
     log.info(
         f"POST /predict from {request.client.host} | trip={req.trip_id} | n_obs={trip.n_points} | "
-        f"inference={inference_ms:.0f} ms | top1={'n/a' if top1 is None else f'{top1:.3f}'} | "
-        f"continuity={metrics['route_continuity']:.3f}"
+        f"inference={inference_ms:.0f} ms | decoder={metrics['decoder_used']} | "
+        f"top1={'n/a' if top1 is None else f'{top1:.3f}'} | continuity={metrics['route_continuity']:.3f}"
     )
 
     return PredictResponse(
