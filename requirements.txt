@@ -9,3 +9,10 @@ shapely>=2.0.0
 jupyter>=1.1.0
 nbformat>=5.10.0
 ipykernel>=6.29.0
+
+# Model 5 - MLP Neural Network
+torch>=2.0
+scikit-learn>=1.4
+joblib>=1.3
+pyarrow>=15.0
+pytest>=8.0
