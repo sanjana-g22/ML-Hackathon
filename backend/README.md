@@ -42,7 +42,26 @@ set API_URL=http://<laptop-1-ip>:8000
 streamlit run frontend/app.py
 ```
 
-The API URL can also be edited in the sidebar.
+The API URL can also be edited in the sidebar. When testing on one machine, use
+`http://127.0.0.1:8000` rather than `localhost`: on Windows `localhost` tries IPv6
+first and adds about 2 s to every request.
+
+What the evaluator sees:
+
+- **Sidebar:** connection status with round-trip time and the loaded pipeline;
+  map options (Streets/Satellite basemap, road network, GPS points, route-break markers).
+- **Trip picker:** every trip the API reports, with GPS point count and duration;
+  trips already run in this session are ticked.
+- **Result cards:** Top-1 accuracy, route continuity, route precision/recall,
+  route breaks and inference time, each with a hover explanation.
+- **Map tab:** GPS points, predicted route, nearby roads and orange rings where the
+  predicted route jumps between unconnected segments (what HMM decoding should remove).
+- **Session history tab:** one row per run with a CSV download, useful for going
+  through all ten evaluator trips.
+- **Details tab:** trip facts and the raw metrics returned by the API.
+- If the API cannot be reached, the page shows a troubleshooting checklist instead.
+
+Theme colours live in `.streamlit/config.toml`; the UI follows the viewer's light/dark setting.
 
 ## API
 
