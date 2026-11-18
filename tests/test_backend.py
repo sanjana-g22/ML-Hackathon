@@ -39,8 +39,12 @@ def test_predict_shape_and_metrics(client):
 
     assert set(body) == {"trip_id", "pipeline", "gps", "predicted_route", "network", "metrics"}
     assert len(body["gps"]) == body["metrics"]["n_obs"]
-    assert 0.0 <= body["metrics"]["top1_accuracy"] <= 1.0
-    assert 0.0 <= body["metrics"]["route_continuity"] <= 1.0
+    m = body["metrics"]
+    for key in ["top1_accuracy", "top1_reliable_points", "route_continuity", "route_precision",
+                "route_recall", "sequence_f1", "unreliable_point_share"]:
+        assert 0.0 <= m[key] <= 1.0, key
+    for key in ["inference_ms", "features_ms", "classifier_ms", "decoder_ms"]:
+        assert m[key] >= 0, key
 
 
 def test_evaluate_alias_matches_predict(client):

@@ -30,7 +30,7 @@
   "n_test_rows": 468861,
   "n_test_trips": 10,
   "pos_rate_train": 0.0386529785699025,
-  "final_fit_seconds": 49.722817400004715,
+  "final_fit_seconds": 32.52734950000013,
   "cv": {
     "folds": [
       {
@@ -57,7 +57,7 @@
           "route_continuity": 0.885452317766039,
           "sequence_f1": 0.6077424501726822,
           "n_trips": 67,
-          "inference_ms_per_trip": 90.68432537312776
+          "inference_ms_per_trip": 81.2241865671457
         },
         "val": {
           "n_candidates": 1029189,
@@ -81,7 +81,7 @@
           "route_continuity": 0.8744445159874566,
           "sequence_f1": 0.5746542833044667,
           "n_trips": 13,
-          "inference_ms_per_trip": 124.82656153812196
+          "inference_ms_per_trip": 115.9969615389575
         }
       },
       {
@@ -108,7 +108,7 @@
           "route_continuity": 0.8875911866833365,
           "sequence_f1": 0.6096748416173431,
           "n_trips": 64,
-          "inference_ms_per_trip": 98.40974687506332
+          "inference_ms_per_trip": 84.96056093747484
         },
         "val": {
           "n_candidates": 1033990,
@@ -132,7 +132,7 @@
           "route_continuity": 0.863064876109142,
           "sequence_f1": 0.569255512794282,
           "n_trips": 16,
-          "inference_ms_per_trip": 245.14300000009825
+          "inference_ms_per_trip": 85.90210624970496
         }
       },
       {
@@ -159,7 +159,7 @@
           "route_continuity": 0.8857724320030557,
           "sequence_f1": 0.6018769753317911,
           "n_trips": 63,
-          "inference_ms_per_trip": 302.07683333326963
+          "inference_ms_per_trip": 84.02721904759159
         },
         "val": {
           "n_candidates": 1035056,
@@ -183,7 +183,7 @@
           "route_continuity": 0.8793475605364168,
           "sequence_f1": 0.6093192561731011,
           "n_trips": 17,
-          "inference_ms_per_trip": 99.15945882333772
+          "inference_ms_per_trip": 78.76794705867617
         }
       },
       {
@@ -210,7 +210,7 @@
           "route_continuity": 0.8853501084938156,
           "sequence_f1": 0.6027345847731244,
           "n_trips": 63,
-          "inference_ms_per_trip": 107.00287936508961
+          "inference_ms_per_trip": 123.39453968253646
         },
         "val": {
           "n_candidates": 1035595,
@@ -234,7 +234,7 @@
           "route_continuity": 0.8697590906075066,
           "sequence_f1": 0.5944189340512323,
           "n_trips": 17,
-          "inference_ms_per_trip": 181.50623529415017
+          "inference_ms_per_trip": 77.09762352939887
         }
       },
       {
@@ -261,7 +261,7 @@
           "route_continuity": 0.8897259399794536,
           "sequence_f1": 0.6106098154535008,
           "n_trips": 63,
-          "inference_ms_per_trip": 161.82015873022866
+          "inference_ms_per_trip": 89.66476984134056
         },
         "val": {
           "n_candidates": 1033482,
@@ -285,7 +285,7 @@
           "route_continuity": 0.8821867266676239,
           "sequence_f1": 0.584629626022018,
           "n_trips": 17,
-          "inference_ms_per_trip": 172.38944705861607
+          "inference_ms_per_trip": 81.31055294121752
         }
       }
     ],
@@ -301,7 +301,7 @@
       "route_continuity": 0.88677839698514,
       "sequence_f1": 0.6065277334696884,
       "n_trips": 64.0,
-      "inference_ms_per_trip": 151.9987887353558
+      "inference_ms_per_trip": 92.65425521521783
     },
     "train_std": {
       "n_candidates": 2263.989275592974,
@@ -315,7 +315,7 @@
       "route_continuity": 0.0016828010251828706,
       "sequence_f1": 0.003579406318807524,
       "n_trips": 1.5491933384829668,
-      "inference_ms_per_trip": 79.08951822317417
+      "inference_ms_per_trip": 15.608762064358887
     },
     "val_mean": {
       "n_candidates": 1033462.4,
@@ -329,7 +329,7 @@
       "route_continuity": 0.8737605539816291,
       "sequence_f1": 0.58645552246902,
       "n_trips": 16.0,
-      "inference_ms_per_trip": 164.60494054286482
+      "inference_ms_per_trip": 87.81503826359099
     },
     "val_std": {
       "n_candidates": 2263.989275592974,
@@ -343,7 +343,7 @@
       "route_continuity": 0.006827767815169412,
       "sequence_f1": 0.014315094965693314,
       "n_trips": 1.5491933384829668,
-      "inference_ms_per_trip": 50.39456685168827
+      "inference_ms_per_trip": 14.40070328527112
     }
   },
   "student_test": {
@@ -368,7 +368,7 @@
     "route_continuity": 0.8862502119716229,
     "sequence_f1": 0.5994894249405565,
     "n_trips": 10,
-    "inference_ms_per_trip": 86.97437999944668
+    "inference_ms_per_trip": 68.35972000117181
   },
   "fold_extras": [
     {

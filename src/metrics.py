@@ -31,6 +31,7 @@ MODEL_NAMES = {
     "rf": ("Random Forest", "Bagging ensemble (trees)"),
     "lgbm": ("LightGBM (untuned)", "Gradient boosting (trees)"),
     "lgbm_tuned": ("LightGBM (Optuna-tuned)", "Gradient boosting (trees)"),
+    "mlp": ("MLP", "Neural network (MLP)"),
 }
 
 

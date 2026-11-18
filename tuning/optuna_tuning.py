@@ -52,6 +52,8 @@ def comparison_row(label, result):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--n-trials", type=int, default=50)
+    parser.add_argument("--refit-only", action="store_true",
+                        help="skip new trials and the baseline re-run; refit the best saved trial and evaluate it")
     args = parser.parse_args()
     RESULTS.mkdir(exist_ok=True)
 
@@ -81,15 +83,18 @@ def main():
     study = optuna.create_study(study_name=STUDY_NAME, storage=storage, direction="maximize",
                                 sampler=optuna.samplers.TPESampler(seed=42), load_if_exists=True)
 
-    # untuned baseline, using the same folds and test split as the tuned model
-    untuned, _ = run_experiment(
-        "lgbm", "Gradient boosting (trees)",
-        {**UNTUNED, "scale_pos_weight": "n_neg/n_pos (per training set)"},
-        lambda yy: LGBMClassifier(**UNTUNED, scale_pos_weight=scale_pos_weight(yy)),
-        artifact_name="lgbm_untuned.joblib",
-    )
-
-    study.optimize(objective, n_trials=args.n_trials, show_progress_bar=False)
+    if args.refit_only:
+        untuned = json.loads((RESULTS / "metrics_lgbm.json").read_text())
+        del df, train, X
+    else:
+        # untuned baseline, using the same folds and test split as the tuned model
+        untuned, _ = run_experiment(
+            "lgbm", "Gradient boosting (trees)",
+            {**UNTUNED, "scale_pos_weight": "n_neg/n_pos (per training set)"},
+            lambda yy: LGBMClassifier(**UNTUNED, scale_pos_weight=scale_pos_weight(yy)),
+            artifact_name="lgbm_untuned.joblib",
+        )
+        study.optimize(objective, n_trials=args.n_trials, show_progress_bar=False)
     study.trials_dataframe().to_csv(RESULTS / "optuna_trials.csv", index=False)
     best = study.best_params
     print(f"Best CV Macro F1={study.best_value:.4f} params={best}")
@@ -102,7 +107,8 @@ def main():
     )
     tuned["optuna"] = {
         "n_trials": len(study.trials),
-        "new_trials": args.n_trials,
+        "completed_trials": sum(t.value is not None for t in study.trials),
+        "new_trials": 0 if args.refit_only else args.n_trials,
         "sampler": "TPESampler(seed=42)",
         "objective": "mean 5-fold CV Macro F1",
         "best_value": study.best_value,

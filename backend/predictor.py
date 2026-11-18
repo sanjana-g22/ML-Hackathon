@@ -1,122 +1,131 @@
 """
 Prediction pipeline used by the API.
 
-IMPORTANT: this module must never read the .route file. It receives a trip
-whose `route` has been removed (see backend.main) and returns one predicted arc_id
-per GPS observation (-1 where it has no prediction).
+IMPORTANT: this module must never read the .route file. It receives a trip whose
+`route` has been removed (see backend.main) and returns one predicted arc_id per GPS
+observation (-1 where it has no prediction).
 
-Pipeline Architecture (Member 1 -> Member 2 -> Member 3):
-    1. Spatial candidate generation & feature extraction (src.candidates, src.features)
-    2. ML classifier probability scoring (Random Forest / Logistic Regression)
-    3. Global HMM Viterbi decoding & continuous route reconstruction (backend.hmm_decoder)
+Pipeline
+    1. Candidates + features   src.member1_pipeline.inference_features (M1), the same
+                               code and settings used to build the training data
+    2. Candidate classifier    artifacts/<model>.joblib saved by src.metrics.run_experiment
+                               (default: Random Forest; override with PATHSNAP_MODEL)
+    3. Decoder                 hmm.decoder.decode_trip (M3) global Viterbi decoder;
+                               fallback to classifier-only: highest-probability arc per point
 """
-import logging
 import os
+import time
+import warnings
+from dataclasses import dataclass, field
+from pathlib import Path
+
 import joblib
 import numpy as np
-from scipy.spatial import cKDTree
+import pandas as pd
 
 from src.data_loader import TripData
-from backend.hmm_decoder import viterbi_map_match_trip
-from src.network import build_network
-from src.features import make_features
+from src.member1_pipeline import inference_features
 
-log = logging.getLogger("pathsnap.predictor")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+MODEL_PATH = Path(os.environ.get("PATHSNAP_MODEL", REPO_ROOT / "artifacts" / "rf_model.joblib"))
+CANDIDATE_RADIUS_M = 250.0     # must match the training data (src.member1_pipeline defaults)
+MAX_CANDIDATES = 30
 
-EARTH_RADIUS_M = 6_371_000.0
-PIPELINE_NAME = "HMM + Viterbi (Member 3) with Random Forest"
+try:                            # M3's Viterbi decoder
+    from hmm.decoder import decode_trip as _hmm_decode
+except ImportError:
+    try:
+        from backend.hmm_decoder import viterbi_map_match_trip
+        def _hmm_decode(trip, network, candidates, xy=None, valid=None):
+            return viterbi_map_match_trip(trip, candidates)["observation_arcs"]
+    except ImportError:
+        _hmm_decode = None
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ARTIFACTS_DIR = os.path.join(REPO_ROOT, "artifacts")
+DECODER_NAME = "HMM/Viterbi (Member 3)" if _hmm_decode else "classifier-only (argmax per point)"
+_MODEL_NAMES = {
+    "rf_model": "Random Forest",
+    "best_model_tuned": "Tuned model",
+    "lgbm_untuned": "LightGBM",
+    "logistic_pipeline": "Logistic Regression",
+    "knn_model": "KNN",
+    "mlp_model": "MLP"
+}
+PIPELINE_NAME = f"{_MODEL_NAMES.get(MODEL_PATH.stem, MODEL_PATH.stem)} + {DECODER_NAME}"
 
-# Preload best trained classifier (Random Forest preferred, fallback to Logistic)
-_MODEL_PKG = None
-_MODEL_TYPE = "None"
-
-try:
-    rf_path = os.path.join(ARTIFACTS_DIR, "rf_model.joblib")
-    lr_path = os.path.join(ARTIFACTS_DIR, "logistic_pipeline.joblib")
-    if os.path.exists(rf_path):
-        _MODEL_PKG = joblib.load(rf_path)
-        _MODEL_TYPE = "Random Forest"
-        PIPELINE_NAME = "HMM + Viterbi (Member 3) with Random Forest"
-    elif os.path.exists(lr_path):
-        _MODEL_PKG = joblib.load(lr_path)
-        _MODEL_TYPE = "Logistic Regression"
-        PIPELINE_NAME = "HMM + Viterbi (Member 3) with Logistic Regression"
-except Exception as e:
-    log.warning(f"Failed to preload model artifact: {e}")
-
-
-def _xy(lon, lat, lon0, lat0):
-    x = np.radians(lon - lon0) * EARTH_RADIUS_M * np.cos(np.radians(lat0))
-    y = np.radians(lat - lat0) * EARTH_RADIUS_M
-    return np.column_stack([x, y])
+_model = None
 
 
-def _nearest_arc_fallback(trip: TripData) -> np.ndarray:
-    """Fast fallback finding the nearest road arc midpoint to each GPS point."""
-    lon0, lat0 = trip.track["longitude"].mean(), trip.track["latitude"].mean()
-    nodes = _xy(trip.nodes["longitude"].to_numpy(), trip.nodes["latitude"].to_numpy(), lon0, lat0)
-    arcs = trip.arcs[["from_node_id", "to_node_id"]].to_numpy()
-    gps = _xy(trip.track["longitude"].to_numpy(), trip.track["latitude"].to_numpy(), lon0, lat0)
+def load_model():
+    """Load the classifier once. The saved file is {'model': estimator, 'features': [...]}."""
+    global _model
+    if _model is None:
+        with warnings.catch_warnings():
+            # artifacts may come from a slightly different scikit-learn version; predictions were
+            # checked to match the recorded student-test metrics exactly
+            warnings.simplefilter("ignore")
+            artifact = joblib.load(MODEL_PATH)
+        _model = (artifact["model"], list(artifact["features"]))
+    return _model
 
-    mid = (nodes[arcs[:, 0]] + nodes[arcs[:, 1]]) / 2
-    _, idx = cKDTree(mid).query(gps)
-    return idx.astype(int)
+
+@dataclass
+class Prediction:
+    arcs: np.ndarray                 # one arc_id per GPS observation, -1 = none
+    candidates: pd.DataFrame         # candidates with features and classifier probability
+    network: object                  # src.network.SpatialNetwork (reference-free)
+    xy: np.ndarray                   # projected GPS points (metres)
+    valid: np.ndarray                # usable GPS points
+    timings_ms: dict = field(default_factory=dict)
+
+
+def argmax_decode(candidates: pd.DataFrame, n_obs: int) -> np.ndarray:
+    """Classifier-only route: the most probable candidate for each GPS point.
+    Candidates are sorted by distance within a point, so ties go to the nearest road."""
+    arcs = np.full(n_obs, -1, dtype=np.int64)
+    if len(candidates):
+        best = candidates.loc[candidates.groupby("obs_idx", sort=False)["prob"].idxmax()]
+        arcs[best["obs_idx"].to_numpy()] = best["arc_id"].to_numpy()
+    return arcs
+
+
+def predict(trip: TripData) -> Prediction:
+    assert trip.route is None, "predictor must not see the reference route"
+    model, features = load_model()
+    timings = {}
+
+    t0 = time.perf_counter()
+    candidates, network, xy, valid = inference_features(trip, CANDIDATE_RADIUS_M, MAX_CANDIDATES)
+    timings["features_ms"] = (time.perf_counter() - t0) * 1000
+
+    t0 = time.perf_counter()
+    if len(candidates) and hasattr(model, "predict_proba"):
+        candidates["prob"] = model.predict_proba(candidates[features])[:, 1]
+    elif len(candidates) and "distance_m" in candidates.columns:
+        candidates["prob"] = np.exp(-candidates["distance_m"].to_numpy() / 50.0)
+    else:
+        candidates["prob"] = []
+    timings["classifier_ms"] = (time.perf_counter() - t0) * 1000
+
+    t0 = time.perf_counter()
+    if _hmm_decode is not None and len(candidates) > 0:
+        try:
+            arcs = np.asarray(_hmm_decode(trip, network, candidates, xy, valid), dtype=np.int64)
+            # Ensure valid shape and handle any unassigned observation
+            if len(arcs) == trip.n_points:
+                unassigned = arcs < 0
+                if np.any(unassigned):
+                    fallback_arcs = argmax_decode(candidates, trip.n_points)
+                    arcs[unassigned] = fallback_arcs[unassigned]
+            else:
+                arcs = argmax_decode(candidates, trip.n_points)
+        except Exception:
+            arcs = argmax_decode(candidates, trip.n_points)
+    else:
+        arcs = argmax_decode(candidates, trip.n_points)
+    timings["decoder_ms"] = (time.perf_counter() - t0) * 1000
+
+    return Prediction(arcs, candidates, network, xy, valid, {k: round(v, 1) for k, v in timings.items()})
 
 
 def predict_arcs(trip: TripData) -> np.ndarray:
-    """
-    Predicts one arc_id per observation using HMM Viterbi decoding over ML emission scores.
-    Guarantees strict compliance with the API contract and runtime safety.
-    """
-    assert trip.route is None, "predictor must not see the reference route"
-
-    fallback = None
-
-    try:
-        # 1. Build spatial network & extract candidate features
-        spatial_net = build_network(trip)
-        feat_df, _, _ = make_features(trip, spatial_net, radius=250.0, k=30)
-
-        if feat_df is None or len(feat_df) == 0:
-            return _nearest_arc_fallback(trip)
-
-        # 2. Score candidate emission probabilities with trained model
-        if _MODEL_PKG is not None and "model" in _MODEL_PKG and "features" in _MODEL_PKG:
-            features = _MODEL_PKG["features"]
-            X = feat_df[features].fillna(0.0)
-            model = _MODEL_PKG["model"]
-            probs = model.predict_proba(X)[:, 1]
-            feat_df["prob"] = probs
-        elif "distance_m" in feat_df.columns:
-            # Distance-based heuristic if model artifact is unavailable
-            feat_df["prob"] = np.exp(-feat_df["distance_m"].to_numpy() / 50.0)
-        else:
-            feat_df["prob"] = 0.5
-
-        # 3. Global HMM Viterbi map matching & route reconstruction
-        result = viterbi_map_match_trip(
-            trip=trip,
-            candidates_df=feat_df,
-            beta=30.0,
-            model_name=_MODEL_TYPE
-        )
-
-        pred = result["observation_arcs"]
-
-        # Ensure all observations have valid arc indices [0, n_arcs)
-        if len(pred) == trip.n_points:
-            invalid_mask = (pred < 0) | (pred >= trip.n_arcs)
-            if np.any(invalid_mask):
-                if fallback is None:
-                    fallback = _nearest_arc_fallback(trip)
-                pred[invalid_mask] = fallback[invalid_mask]
-            return pred.astype(int)
-
-    except Exception as exc:
-        log.warning(f"HMM Viterbi prediction encountered exception on {trip.trip_id}: {exc}; falling back to nearest arc.")
-
-    # Graceful fallback to guarantee zero crash and API contract compliance
-    return _nearest_arc_fallback(trip)
+    return predict(trip).arcs

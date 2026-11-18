@@ -250,6 +250,123 @@ def sample_size_study(train, feats, folds, best, sizes=(50_000, 100_000, 300_000
     plt.close(fig)
 
 
+def plot_overview(sweep, best, result, preds, test, path):
+    """One 2x3 summary figure for slides: k selection, calibration, generalisation, per-trip
+    spread, error types, and KNN vs the other models in results/metrics_*.json."""
+    blue, orange, grey = "#4C72B0", "#DD8452", "#8c8c8c"
+    fig, axes = plt.subplots(2, 3, figsize=(19, 10.5))
+    (a, b, c), (d, e, f) = axes
+    best_k = best["k"]
+
+    # A: Macro F1 vs k
+    for w, col in [("uniform", blue), ("distance", orange)]:
+        s = sweep[sweep.weights == w].sort_values("k")
+        a.errorbar(s.k, s.cv_macro_f1, yerr=s.cv_macro_f1_std, marker="o", color=col, capsize=3,
+                   label=f"validation ({w})")
+    s = sweep[sweep.weights == "uniform"].sort_values("k")
+    a.plot(s.k, s.train_macro_f1, ls="--", marker=".", color=blue, alpha=.6, label="training rows (uniform)")
+    a.axvline(best_k, color=grey, ls=":", lw=1.2)
+    a.annotate(f"chosen k={best_k}", (best_k, 0.955), xytext=(6, 0), textcoords="offset points", fontsize=9, color="#555")
+    a.annotate("overfits", (1, 0.99), xytext=(8, -4), textcoords="offset points", fontsize=8, color="#555")
+    a.annotate("underfits →", (20, 0.728), fontsize=8, color="#555")
+    a.set(xscale="log", ylim=(0.72, 1.02), xlabel="k (neighbours)", ylabel="Macro F1",
+          title="Choosing k: Macro F1 (5-fold grouped CV)")
+    a.set_xticks(K_VALUES, [str(k) for k in K_VALUES])
+    a.legend(fontsize=8, loc="center right")
+
+    # B: log loss vs k
+    for w, col in [("uniform", blue), ("distance", orange)]:
+        s = sweep[sweep.weights == w].sort_values("k")
+        b.plot(s.k, s.cv_log_loss, marker="o", color=col, label=w)
+    b.axvline(best_k, color=grey, ls=":", lw=1.2)
+    b.set(xscale="log", xlabel="k (neighbours)", ylabel="log loss (lower = better)",
+          title="Probability quality: log loss vs k (CV)")
+    b.set_xticks(K_VALUES, [str(k) for k in K_VALUES])
+    b.legend(fontsize=8)
+
+    # C: CV vs student-test
+    cv, st = result["cv"]["val_mean"], result["student_test"]
+    cvs = result["cv"]["val_std"]
+    names = ["Macro F1", "Top-1", "Continuity", "Sequence F1"]
+    keys = ["macro_f1", "top1_accuracy", "route_continuity", "sequence_f1"]
+    x = np.arange(len(keys))
+    cv_v = np.array([np.nan if cv.get(k) is None else cv[k] for k in keys], dtype=float)
+    cv_e = np.nan_to_num(np.array([np.nan if cvs.get(k) is None else cvs[k] for k in keys], dtype=float))
+    b1 = c.bar(x - .2, np.nan_to_num(cv_v), .4, yerr=cv_e, capsize=3, color=blue, label="CV (80 train trips)")
+    b2 = c.bar(x + .2, [st[k] for k in keys], .4, color=orange, label="student-test (10 trips)")
+    for bars, vals, errs in ((b1, cv_v, cv_e), (b2, [st[k] for k in keys], [0] * 4)):
+        for bar, v, err in zip(bars, vals, errs):
+            c.annotate("n/a*" if not np.isfinite(v) else f"{v:.3f}",
+                       (bar.get_x() + bar.get_width() / 2, (v + err) if np.isfinite(v) else 0),
+                       ha="center", va="bottom", fontsize=8, xytext=(0, 2), textcoords="offset points")
+    c.set_xticks(x, names)
+    c.set(ylim=(0, 1.15), title=f"Generalisation: CV vs student-test (k={best_k}, {best['weights']})\n"
+                                  "*route metrics need whole trips, so test only")
+    c.legend(fontsize=8, loc="upper center", ncol=2)
+
+    # D: per-trip Top-1
+    m = preds.merge(test[KEYS + ["arc_id", "label"]], on=KEYS + ["arc_id"])
+    top = m.loc[m.groupby(KEYS, sort=False)["prob"].idxmax()]
+    acc = top.groupby("trip_id")["label"].mean().sort_values()
+    n = top.groupby("trip_id").size()[acc.index]
+    bars = d.bar([t[-2:] for t in acc.index], acc.values, color=blue)
+    for bar, v, cnt in zip(bars, acc.values, n.values):
+        d.annotate(f"{v:.2f}\n{cnt:,}", (bar.get_x() + bar.get_width() / 2, v), ha="center", va="bottom",
+                   fontsize=7, xytext=(0, 2), textcoords="offset points")
+    d.axhline(acc.mean(), color=grey, ls="--", lw=1, label=f"mean of trips {acc.mean():.2f}")
+    d.set(ylim=(0, 1.12), xlabel="student-test trip (last 2 digits of id; label = Top-1 / GPS points)",
+          ylabel="Top-1 accuracy", title="Spread across trips: Top-1 per student-test trip")
+    d.legend(fontsize=8, loc="upper left")
+
+    # E: confusion matrix with counts and row percentages
+    cm = np.array(st["confusion_matrix"])
+    rate = cm / cm.sum(axis=1, keepdims=True)
+    e.imshow(rate, cmap="Blues", vmin=0, vmax=1)
+    labels = [["correctly rejected", "false alarm"], ["missed", "correctly found"]]
+    for i in range(2):
+        for j in range(2):
+            e.text(j, i, f"{labels[i][j]}\n{cm[i, j]:,}\n({rate[i, j]:.1%} of row)", ha="center", va="center",
+                   fontsize=9, color="white" if rate[i, j] > .5 else "black")
+    e.set_xticks([0, 1], ["predicted: wrong road", "predicted: correct road"])
+    e.set_yticks([0, 1], ["truly wrong road", "truly correct road"])
+    e.set_title(f"Error types at p ≥ 0.5 (student-test)\nprecision {st['precision']:.3f} · recall {st['recall']:.3f}")
+
+    # F: KNN vs other models that have results in results/metrics_*.json
+    rows = []
+    for name in ["knn", "rf", "lgbm", "lgbm_tuned", "mlp"]:
+        p = RESULTS / f"metrics_{name}.json"
+        if p.exists():
+            r = json.loads(p.read_text())
+            if r.get("student_test"):
+                label = {"knn": f"KNN k={best_k}", "rf": "Random Forest", "lgbm": "LightGBM",
+                         "lgbm_tuned": "LightGBM tuned", "mlp": "MLP"}[name]
+                rows.append((label, r["student_test"]))
+    metrics = [("macro_f1", "Macro F1", blue), ("top1_accuracy", "Top-1", "#55A868"),
+               ("route_continuity", "Continuity", orange)]
+    x = np.arange(len(rows))
+    width = 0.26
+    for i, (key, lab, col) in enumerate(metrics):
+        vals = [r[key] for _, r in rows]
+        bars = f.bar(x + (i - 1) * width, vals, width, color=col, label=lab)
+        for bar, v in zip(bars, vals):
+            f.annotate(f"{v:.2f}", (bar.get_x() + bar.get_width() / 2, v), ha="center", va="bottom",
+                       fontsize=7, xytext=(0, 1), textcoords="offset points")
+    f.set_xticks(x, [f"{lab}\n{r['inference_ms_per_trip']:,.0f} ms/trip" for lab, r in rows])
+    f.set(ylim=(0, 1.1), title="KNN vs other models (student-test)")
+    f.legend(fontsize=8, loc="upper center", ncol=3)
+
+    for ax, letter in zip(axes.ravel(), "ABCDEF"):
+        ax.text(-0.08, 1.06, letter, transform=ax.transAxes, fontsize=16, fontweight="bold", va="bottom")
+        if ax is not e:
+            ax.grid(alpha=.25, axis="y")
+    fig.suptitle(f"KNN candidate classifier: k={best_k}, {best['weights']}-weighted, "
+                 f"{result['config']['train_sample_per_fit']:,} stored training candidates, 14 shared features",
+                 fontsize=14, fontweight="bold")
+    fig.tight_layout(rect=(0, 0, 1, 0.96), h_pad=3, w_pad=2.5)
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+
+
 def redraw_plots():
     """Regenerate all KNN figures from results/ without retraining."""
     sweep = pd.read_csv(RESULTS / "knn_k_sweep.csv")
@@ -264,6 +381,7 @@ def redraw_plots():
     plot_per_trip(preds, test, FIGURES / "knn_per_trip_top1.png")
     plot_confusion(result["student_test"]["confusion_matrix"], f"KNN k={best['k']} (student_test)",
                    FIGURES / "cm_knn.png")
+    plot_overview(sweep, best, result, preds, test, FIGURES / "knn_overview.png")
     print("figures redrawn in", FIGURES)
 
 
