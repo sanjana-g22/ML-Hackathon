@@ -74,10 +74,24 @@ Theme colours live in `.streamlit/config.toml`; the UI follows the viewer's ligh
 
 Response: `gps` `[[lat, lon], ...]`, `predicted_route` (list of polylines, split wherever consecutive predicted arcs are not connected), `network` (road segments near the track, for map context), `metrics` `{top1_accuracy, route_continuity, route_precision, route_recall, n_obs, inference_ms}`.
 
-## Plugging in the real pipeline
+## Prediction pipeline
 
-1. `backend/predictor.py`: replace the body of `predict_arcs(trip)` with candidates/features (M1) → tuned classifier (M2) → Viterbi (M3). It must return one `arc_id` per GPS observation (`-1` if none). Update `PIPELINE_NAME`.
-2. `backend/scoring.py`: replace `point_labels` with M1's label alignment so the API scores exactly like the report.
+`backend/predictor.py` runs, for each requested trip:
+
+1. **Candidates + features**: `src.member1_pipeline.inference_features` (M1), the same code and settings
+   (250 m radius, 30 candidates per point) used to build the training data.
+2. **Classifier**: the saved model in `artifacts/` (default `rf_model.joblib`). Switch model with
+   `set PATHSNAP_MODEL=artifacts\best_model_tuned.joblib` before starting uvicorn.
+3. **Decoder**: if `hmm/decoder.py` exists, its `decode_trip(trip, network, candidates, xy, valid)` is used
+   (M3's Viterbi); otherwise classifier-only (highest-probability arc per GPS point).
+
+`backend/scoring.py` labels each GPS point with M1's `align_reference` (the same labels used for training and
+the report) and returns Top-1 (all points and reliable points only), route continuity, route precision/recall
+and sequence F1. Only these aggregate numbers leave Laptop 1.
+
+Checked on the 10 student-test trips with the Random Forest: the API's Top-1 equals the evaluation harness
+for every trip (pooled 0.8178, as in `results/metrics_rf.json`). End-to-end time per trip is 0.1–1.2 s,
+mostly feature building.
 
 ## Tests
 
