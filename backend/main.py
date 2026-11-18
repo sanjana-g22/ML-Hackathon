@@ -91,13 +91,15 @@ def predict(req: PredictRequest, request: Request):
     if trip is None:
         raise HTTPException(status_code=404, detail=f"unknown trip_id {req.trip_id}")
 
+    predictor.load_model()             # loads once, on the first request; not counted as inference
     t0 = time.perf_counter()
-    pred = predictor.predict_arcs(trip)
+    prediction = predictor.predict(trip)
     inference_ms = (time.perf_counter() - t0) * 1000
+    pred = prediction.arcs
 
     route_path = os.path.join(EVAL_DIR, req.trip_id, f"{req.trip_id}.route")
-    metrics = scoring.score(trip, route_path, pred)
-    metrics.update({"n_obs": trip.n_points, "inference_ms": round(inference_ms, 1)})
+    metrics = scoring.score(trip, route_path, prediction)
+    metrics.update({"n_obs": trip.n_points, "inference_ms": round(inference_ms, 1), **prediction.timings_ms})
 
     top1 = metrics["top1_accuracy"]
     log.info(
